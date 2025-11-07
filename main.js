@@ -223,14 +223,13 @@ function syncChoiceInputs(names) {
   const container = state.choiceFieldContainer || document.getElementById('choice-fields');
   if (!container) return;
   state.choiceFieldContainer = container;
-  container.innerHTML = '';
-  names.forEach((choice, index) => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = `${ordinal(index + 1)} Choice`;
-    input.value = choice;
-    container.appendChild(input);
+  const inputs = Array.from(container.querySelectorAll('input[name$="Choice"]'));
+  inputs.forEach((input, index) => {
+    input.value = names[index] || '';
   });
+  if (names.length > inputs.length) {
+    console.warn(`Only the first ${inputs.length} choices can be submitted to Netlify. Additional choices are saved locally.`);
+  }
 }
 
 function buildStudentCsv(name, email, choices) {
@@ -282,6 +281,15 @@ async function handleSubmit(event, form, submitBtn) {
   triggerCsvDownload(csvPayload, emailValue);
 
   const formData = new FormData(form);
+  formData.set('form-name', 'advisor-lottery');
+  formData.set('Name', nameValue);
+  formData.set('Email', emailValue);
+  const choiceInputs = state.choiceFieldContainer
+    ? Array.from(state.choiceFieldContainer.querySelectorAll('input[name$="Choice"]'))
+    : [];
+  choiceInputs.forEach((input) => {
+    formData.set(input.name, input.value || '');
+  });
   setFormStatus(formStatus, 'Submitting to Netlify…', 'pending');
 
   try {
