@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spring 2026 Capstone Advisor Lottery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script defer src="main.js"></script>
+</head>
+<body>
+  <div id="splash" class="splash" aria-live="polite">
+    <form id="password-form" class="splash__panel" autocomplete="off">
+      <p class="splash__prompt">enter the password</p>
+      <label class="sr-only" for="password-input">Password</label>
+      <input
+        id="password-input"
+        class="splash__input"
+        type="password"
+        name="password"
+        inputmode="text"
+        autocomplete="new-password"
+        required
+        aria-required="true"
+      />
+      <button type="submit" class="splash__button">unlock</button>
+      <p id="password-status" class="splash__status" role="status" aria-live="assertive"></p>
+    </form>
+  </div>
+
+  <main>
+    <form
+      id="advisor-form"
+      name="advisor-lottery"
+      method="POST"
+      data-netlify="true"
+      netlify-honeypot="bot-field"
+    >
+      <input type="hidden" name="form-name" value="advisor-lottery" />
+      <input type="hidden" id="choices" name="choices" />
+      <p class="sr-only">
+        <label>Don’t fill this out if you’re human
+          <input name="bot-field" type="text" tabindex="-1" autocomplete="off" />
+        </label>
+      </p>
+
+      <h1>Spring 2026 Capstone Advisor Lottery</h1>
+
+      <div class="top-inputs">
+        <label class="field">
+          <span class="sr-only">Full Name</span>
+          <input type="text" name="full-name" id="full-name" required autocomplete="name" placeholder="Full Name" />
+        </label>
+        <label class="field">
+          <span class="sr-only">Columbia email address</span>
+          <input
+            type="email"
+            name="email"
+            id="email"
+            inputmode="email"
+            autocapitalize="none"
+            autocomplete="email"
+            required
+            placeholder="Columbia email address"
+          />
+        </label>
+      </div>
+      <p id="table-guidance-top" class="table-guidance" role="status"></p>
+
+      <section class="choices">
+        <div class="choices__rank" aria-hidden="true">
+          <div class="table-wrapper">
+            <table class="rank-table">
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                </tr>
+              </thead>
+              <tbody id="rank-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="choices__table">
+          <div class="table-wrapper">
+            <table id="advisor-table" aria-live="polite">
+              <thead>
+                <tr>
+                  <th scope="col">Advisor</th>
+                  <th scope="col">Capacity</th>
+                  <th scope="col">Experience &amp; Tags</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <div class="form-footer">
+        <button type="submit" class="primary-btn">Submit rankings securely</button>
+        <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+  </main>
+</body>
+</html>
