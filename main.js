@@ -13,14 +13,9 @@ const state = {
   tagColorMap: new Map(),
   sortable: null,
   advisorsLoaded: false,
-  rankListEl: null,
-  rankHeaderEl: null,
   choiceFieldContainer: null,
-  tableResizeObserver: null,
   tooltipTimer: null,
 };
-
-let rankSyncFrame = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   const splash = document.getElementById('splash');
@@ -31,16 +26,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const emailInput = document.getElementById('email');
   const choiceFields = document.getElementById('choice-fields');
   const submitBtn = advisorForm.querySelector('button[type="submit"]');
-  state.rankListEl = document.getElementById('rank-table-body');
-  state.rankHeaderEl = document.querySelector('.rank-table thead tr');
   state.choiceFieldContainer = choiceFields;
 
   attachParallaxBackground();
   enforceColumbiaEmail(emailInput);
   loadAdvisors(submitBtn);
   setupDragTooltip();
-  window.addEventListener('resize', scheduleRankSync);
-  window.addEventListener('load', scheduleRankSync);
 
   passwordForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -91,15 +82,12 @@ function enforceColumbiaEmail(emailInput) {
 
 function loadAdvisors(submitBtn) {
   const tableBody = document.querySelector('#advisor-table tbody');
-  const rankList = document.getElementById('rank-table-body');
   const guidanceEls = document.querySelectorAll('.table-guidance');
   const setGuidance = (message) => {
     guidanceEls.forEach((node) => {
       node.textContent = message;
     });
   };
-  state.rankListEl = rankList;
-  state.rankHeaderEl = document.querySelector('.rank-table thead tr');
 
   setGuidance('Loading advisors…');
   submitBtn.disabled = true;
@@ -112,7 +100,6 @@ function loadAdvisors(submitBtn) {
       const data = (results.data || []).filter((row) => row.Name);
       const tagKey = findTagField(results.meta?.fields);
 
-      buildRankList(rankList, data.length);
       tableBody.innerHTML = '';
       data.forEach((row) => {
         const tags = parseTags(row[tagKey]);
@@ -121,6 +108,9 @@ function loadAdvisors(submitBtn) {
         tr.dataset.name = (row.Name || '').trim();
         tr.dataset.capacity = (row.Capacity || '').trim();
         tr.dataset.tags = tags.join(', ');
+
+        const rankCell = document.createElement('td');
+        rankCell.className = 'rank-cell';
 
         const nameCell = document.createElement('td');
         nameCell.textContent = row.Name || '—';
@@ -141,16 +131,16 @@ function loadAdvisors(submitBtn) {
           tagsCell.textContent = '—';
         }
 
-        tr.append(nameCell, capacityCell, tagsCell);
+        tr.append(rankCell, nameCell, capacityCell, tagsCell);
         tableBody.appendChild(tr);
       });
 
       initSortable(tableBody);
+      updateRankNumbers();
       updateChoiceFields();
       setGuidance('Drag rows to rank your preferences. Left column shows the choice numbers.');
       state.advisorsLoaded = true;
       submitBtn.disabled = false;
-      observeTableSize(document.getElementById('advisor-table'));
     },
     error: (error) => {
       console.error(error);
@@ -182,22 +172,6 @@ function pickTagColor(tag) {
   return state.tagColorMap.get(tag);
 }
 
-function buildRankList(listEl, count) {
-  if (!listEl) return;
-  state.rankListEl = listEl;
-  listEl.innerHTML = '';
-  const fragment = document.createDocumentFragment();
-  for (let i = 1; i <= count; i += 1) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.textContent = `${ordinal(i)} Choice`;
-    tr.appendChild(td);
-    fragment.appendChild(tr);
-  }
-  listEl.appendChild(fragment);
-  scheduleRankSync();
-}
-
 function initSortable(tbody) {
   if (!tbody) return;
   if (state.sortable) {
@@ -211,7 +185,9 @@ function initSortable(tbody) {
     onStart: (evt) => evt.item.classList.add('dragging'),
     onEnd: (evt) => {
       evt.item.classList.remove('dragging');
+      updateRankNumbers();
       updateChoiceFields();
+      flashRow(evt.item);
     },
   });
 }
@@ -219,7 +195,6 @@ function initSortable(tbody) {
 function updateChoiceFields() {
   const names = getOrderedAdvisorNames();
   syncChoiceInputs(names);
-  scheduleRankSync();
   return names;
 }
 
@@ -240,6 +215,22 @@ function syncChoiceInputs(names) {
   if (names.length > inputs.length) {
     console.warn(`Only the first ${inputs.length} choices can be submitted to Netlify. Additional choices are saved locally.`);
   }
+}
+
+function updateRankNumbers() {
+  const rows = document.querySelectorAll('#advisor-table tbody tr');
+  rows.forEach((row, index) => {
+    const rankCell = row.querySelector('.rank-cell');
+    if (rankCell) {
+      rankCell.textContent = index + 1;
+    }
+  });
+}
+
+function flashRow(row) {
+  if (!row) return;
+  row.classList.add('reordered');
+  setTimeout(() => row.classList.remove('reordered'), 600);
 }
 
 function buildStudentCsv(name, email, choices) {
@@ -350,78 +341,44 @@ function setFormStatus(node, message, variant) {
   if (variant === 'error') node.classList.add('form-status--error');
 }
 
-function observeTableSize(target) {
-  if (typeof ResizeObserver === 'undefined') return;
-  if (!target) return;
-  if (state.tableResizeObserver) {
-    state.tableResizeObserver.disconnect();
-  }
-  state.tableResizeObserver = new ResizeObserver(() => scheduleRankSync());
-  state.tableResizeObserver.observe(target);
-}
-
 function setupDragTooltip() {
   const tooltip = document.getElementById('drag-tooltip');
   const tableWrapper = document.querySelector('.choices__table .table-wrapper');
   if (!tooltip || !tableWrapper) return;
 
-  const showTooltip = () => {
-    tooltip.classList.remove('drag-tooltip--visible');
-    // force reflow so animation can replay
-    void tooltip.offsetWidth;
+  let hideTimer = null;
+
+  const positionTooltip = (event) => {
+    const rect = tableWrapper.getBoundingClientRect();
+    const offsetX = 8;
+    const offsetY = 12;
+    let x = event.clientX - rect.left + offsetX;
+    let y = event.clientY - rect.top + offsetY;
+
+    const maxX = rect.width - tooltip.offsetWidth - 8;
+    const maxY = rect.height - tooltip.offsetHeight - 8;
+    x = Math.max(8, Math.min(x, maxX));
+    y = Math.max(8, Math.min(y, maxY));
+
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  };
+
+  const showTooltip = (event) => {
+    positionTooltip(event);
     tooltip.classList.add('drag-tooltip--visible');
-    if (state.tooltipTimer) {
-      clearTimeout(state.tooltipTimer);
-    }
-    state.tooltipTimer = setTimeout(() => {
-      tooltip.classList.remove('drag-tooltip--visible');
-      state.tooltipTimer = null;
-    }, 3000);
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => tooltip.classList.remove('drag-tooltip--visible'), 3000);
+  };
+
+  const handleMove = (event) => {
+    if (!tooltip.classList.contains('drag-tooltip--visible')) return;
+    positionTooltip(event);
   };
 
   tableWrapper.addEventListener('mouseenter', showTooltip);
   tableWrapper.addEventListener('focusin', showTooltip);
-}
-
-function scheduleRankSync() {
-  if (rankSyncFrame) {
-    cancelAnimationFrame(rankSyncFrame);
-  }
-  rankSyncFrame = requestAnimationFrame(syncRankHeights);
-}
-
-function syncRankHeights() {
-  rankSyncFrame = null;
-  const rankList = state.rankListEl || document.getElementById('rank-table-body');
-  const rankHeader = state.rankHeaderEl || document.querySelector('.rank-table thead tr');
-  state.rankHeaderEl = rankHeader;
-  const advisorTable = document.getElementById('advisor-table');
-  const advisorHeaderRow = advisorTable?.querySelector('thead tr');
-  if (rankHeader && advisorHeaderRow) {
-    const { height } = advisorHeaderRow.getBoundingClientRect();
-    if (height > 0) {
-      rankHeader.style.height = `${height}px`;
-    }
-  } else if (rankHeader) {
-    rankHeader.style.removeProperty('height');
-  }
-  if (!rankList) return;
-  state.rankListEl = rankList;
-  const rankRows = rankList.querySelectorAll('tr');
-  const rows = document.querySelectorAll('#advisor-table tbody tr');
-  rankRows.forEach((rankRow, index) => {
-    const dataRow = rows[index];
-    if (!dataRow) {
-      rankRow.style.height = '0px';
-      return;
-    }
-    const { height } = dataRow.getBoundingClientRect();
-    rankRow.style.height = `${height}px`;
-    const cell = rankRow.firstElementChild;
-    if (cell) {
-      cell.style.height = `${height}px`;
-    }
-  });
+  tableWrapper.addEventListener('mousemove', handleMove);
 }
 
 async function sha256(message) {

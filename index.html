@@ -71,24 +71,13 @@
       <p id="table-guidance-top" class="table-guidance" role="status"></p>
 
       <section class="choices">
-        <div class="choices__rank" aria-hidden="true">
-          <div class="table-wrapper">
-            <table class="rank-table">
-              <thead>
-                <tr>
-                  <th scope="col">Rank</th>
-                </tr>
-              </thead>
-              <tbody id="rank-table-body"></tbody>
-            </table>
-          </div>
-        </div>
         <div class="choices__table">
-          <div id="drag-tooltip" class="drag-tooltip">Click and drag to order your choices.</div>
           <div class="table-wrapper">
+            <div id="drag-tooltip" class="drag-tooltip">Click and drag to order your choices.</div>
             <table id="advisor-table" aria-live="polite">
               <thead>
                 <tr>
+                  <th scope="col" class="rank-heading">Rank</th>
                   <th scope="col">Advisor</th>
                   <th scope="col">Capacity</th>
                   <th scope="col">Experience &amp; Tags</th>
