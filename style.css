@@ -48,7 +48,7 @@ body::before {
 main {
   position: relative;
   z-index: 1;
-  padding: 80px 0 120px;
+  padding: 40px 0 40px;
   display: flex;
   justify-content: center;
 }
@@ -58,14 +58,14 @@ form#advisor-form {
   width: 70vw;
   background: var(--form-bg);
   border-radius: var(--radius-card);
-  padding: 48px 56px 56px;
+  padding: 36px 56px 36px;
   box-shadow: var(--card-shadow);
 }
 
 h1 {
-  margin: 0 auto 36px;
+  margin: 0 auto 24px;
   text-align: center;
-  letter-spacing: 1em;
+  letter-spacing: 0.6em;
   font-weight: 400;
   color: var(--title-color);
   text-transform: none;
@@ -76,7 +76,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 32px;
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .field {
@@ -294,7 +294,7 @@ tbody tr.dragging {
 }
 
 .form-footer {
-  margin-top: 40px;
+  margin-top: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;

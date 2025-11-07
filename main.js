@@ -1,13 +1,15 @@
-const PASSWORD_HASH = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8';
+const PASSWORD_HASH = '566ffcee658ba582e08468f0f1634411bed916f4d29644be41b0b6575771c05d';
 const TAG_COLORS = [
-  'rgba(124, 143, 241, 0.5)',
-  'rgba(94, 199, 182, 0.5)',
-  'rgba(249, 161, 59, 0.5)',
-  'rgba(200, 107, 177, 0.5)',
-  'rgba(137, 179, 74, 0.5)',
-  'rgba(87, 160, 224, 0.5)',
-  'rgba(240, 113, 103, 0.5)',
+  'rgba(124, 143, 241, 0.25)',
+  'rgba(94, 199, 182, 0.25)',
+  'rgba(249, 161, 59, 0.25)',
+  'rgba(200, 107, 177, 0.25)',
+  'rgba(137, 179, 74, 0.25)',
+  'rgba(87, 160, 224, 0.25)',
+  'rgba(240, 113, 103, 0.25)',
 ];
+
+const ORDER_STORAGE_KEY = 'advisor-order-2026';
 
 const state = {
   tagColorMap: new Map(),
@@ -97,15 +99,21 @@ function loadAdvisors(submitBtn) {
     header: true,
     skipEmptyLines: true,
     complete: (results) => {
-      const data = (results.data || []).filter((row) => row.Name);
+      const rawData = (results.data || []).filter((row) => row.Name);
       const tagKey = findTagField(results.meta?.fields);
+      const normalized = rawData.map((row) => ({
+        ...row,
+        __name: (row.Name || '').trim(),
+      }));
+
+      const orderedRows = applyInitialOrder(normalized);
 
       tableBody.innerHTML = '';
-      data.forEach((row) => {
+      orderedRows.forEach((row) => {
         const tags = parseTags(row[tagKey]);
         const tr = document.createElement('tr');
         tr.classList.add('advisor-row');
-        tr.dataset.name = (row.Name || '').trim();
+        tr.dataset.name = row.__name;
         tr.dataset.capacity = (row.Capacity || '').trim();
         tr.dataset.tags = tags.join(', ');
 
@@ -113,7 +121,7 @@ function loadAdvisors(submitBtn) {
         rankCell.className = 'rank-cell';
 
         const nameCell = document.createElement('td');
-        nameCell.textContent = row.Name || '—';
+        nameCell.textContent = row.__name || '—';
 
         const capacityCell = document.createElement('td');
         capacityCell.textContent = row.Capacity || '0';
@@ -137,7 +145,8 @@ function loadAdvisors(submitBtn) {
 
       initSortable(tableBody);
       updateRankNumbers();
-      updateChoiceFields();
+      const initialOrder = updateChoiceFields();
+      saveCurrentOrder(initialOrder);
       setGuidance('Drag rows to rank your preferences. Left column shows the choice numbers.');
       state.advisorsLoaded = true;
       submitBtn.disabled = false;
@@ -172,6 +181,18 @@ function pickTagColor(tag) {
   return state.tagColorMap.get(tag);
 }
 
+function applyInitialOrder(rows) {
+  const expectedNames = rows.map((row) => row.__name);
+  const storedOrder = loadSavedOrder(expectedNames);
+  const working = rows.slice();
+  if (storedOrder) {
+    working.sort((a, b) => storedOrder.indexOf(a.__name) - storedOrder.indexOf(b.__name));
+  } else {
+    shuffleArray(working);
+  }
+  return working;
+}
+
 function initSortable(tbody) {
   if (!tbody) return;
   if (state.sortable) {
@@ -186,7 +207,8 @@ function initSortable(tbody) {
     onEnd: (evt) => {
       evt.item.classList.remove('dragging');
       updateRankNumbers();
-      updateChoiceFields();
+      const currentOrder = updateChoiceFields();
+      saveCurrentOrder(currentOrder);
       flashRow(evt.item);
     },
   });
@@ -231,6 +253,39 @@ function flashRow(row) {
   if (!row) return;
   row.classList.add('reordered');
   setTimeout(() => row.classList.remove('reordered'), 600);
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function loadSavedOrder(expectedNames) {
+  try {
+    const raw = localStorage.getItem(ORDER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    if (parsed.length !== expectedNames.length) return null;
+    const expectedSet = new Set(expectedNames);
+    const matches = parsed.every((name) => expectedSet.has(name));
+    return matches ? parsed : null;
+  } catch (error) {
+    console.warn('Could not read stored advisor order.', error);
+    return null;
+  }
+}
+
+function saveCurrentOrder(order) {
+  if (!Array.isArray(order) || !order.length) return;
+  try {
+    localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(order));
+  } catch (error) {
+    console.warn('Could not persist advisor order.', error);
+  }
 }
 
 function buildStudentCsv(name, email, choices) {
@@ -305,7 +360,8 @@ async function handleSubmit(event, form, submitBtn) {
 
     setFormStatus(formStatus, 'Thanks! Your rankings were sent successfully.', 'success');
     form.reset();
-    updateChoiceFields();
+    const refreshedOrder = updateChoiceFields();
+    saveCurrentOrder(refreshedOrder);
   } catch (error) {
     console.error(error);
     setFormStatus(
@@ -347,6 +403,7 @@ function setupDragTooltip() {
   if (!tooltip || !tableWrapper) return;
 
   let hideTimer = null;
+  const hideDuration = 2000;
 
   const positionTooltip = (event) => {
     const rect = tableWrapper.getBoundingClientRect();
@@ -368,7 +425,7 @@ function setupDragTooltip() {
     positionTooltip(event);
     tooltip.classList.add('drag-tooltip--visible');
     if (hideTimer) clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => tooltip.classList.remove('drag-tooltip--visible'), 3000);
+    hideTimer = setTimeout(() => tooltip.classList.remove('drag-tooltip--visible'), hideDuration);
   };
 
   const handleMove = (event) => {
@@ -376,9 +433,19 @@ function setupDragTooltip() {
     positionTooltip(event);
   };
 
+  const hideTooltip = () => {
+    tooltip.classList.remove('drag-tooltip--visible');
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+  };
+
   tableWrapper.addEventListener('mouseenter', showTooltip);
   tableWrapper.addEventListener('focusin', showTooltip);
   tableWrapper.addEventListener('mousemove', handleMove);
+  tableWrapper.addEventListener('mouseleave', hideTooltip);
+  tableWrapper.addEventListener('focusout', hideTooltip);
 }
 
 async function sha256(message) {
