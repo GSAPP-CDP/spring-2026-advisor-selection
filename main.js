@@ -1,5 +1,13 @@
 const PASSWORD_HASH = '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8';
-const TAG_COLORS = ['#7c8ff1', '#5ec7b6', '#f9a13b', '#c86bb1', '#89b34a', '#57a0e0', '#f07167'];
+const TAG_COLORS = [
+  'rgba(124, 143, 241, 0.5)',
+  'rgba(94, 199, 182, 0.5)',
+  'rgba(249, 161, 59, 0.5)',
+  'rgba(200, 107, 177, 0.5)',
+  'rgba(137, 179, 74, 0.5)',
+  'rgba(87, 160, 224, 0.5)',
+  'rgba(240, 113, 103, 0.5)',
+];
 
 const state = {
   tagColorMap: new Map(),
@@ -9,6 +17,7 @@ const state = {
   rankHeaderEl: null,
   choiceFieldContainer: null,
   tableResizeObserver: null,
+  tooltipTimer: null,
 };
 
 let rankSyncFrame = null;
@@ -29,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   attachParallaxBackground();
   enforceColumbiaEmail(emailInput);
   loadAdvisors(submitBtn);
+  setupDragTooltip();
   window.addEventListener('resize', scheduleRankSync);
   window.addEventListener('load', scheduleRankSync);
 
@@ -348,6 +358,29 @@ function observeTableSize(target) {
   }
   state.tableResizeObserver = new ResizeObserver(() => scheduleRankSync());
   state.tableResizeObserver.observe(target);
+}
+
+function setupDragTooltip() {
+  const tooltip = document.getElementById('drag-tooltip');
+  const tableWrapper = document.querySelector('.choices__table .table-wrapper');
+  if (!tooltip || !tableWrapper) return;
+
+  const showTooltip = () => {
+    tooltip.classList.remove('drag-tooltip--visible');
+    // force reflow so animation can replay
+    void tooltip.offsetWidth;
+    tooltip.classList.add('drag-tooltip--visible');
+    if (state.tooltipTimer) {
+      clearTimeout(state.tooltipTimer);
+    }
+    state.tooltipTimer = setTimeout(() => {
+      tooltip.classList.remove('drag-tooltip--visible');
+      state.tooltipTimer = null;
+    }, 3000);
+  };
+
+  tableWrapper.addEventListener('mouseenter', showTooltip);
+  tableWrapper.addEventListener('focusin', showTooltip);
 }
 
 function scheduleRankSync() {
