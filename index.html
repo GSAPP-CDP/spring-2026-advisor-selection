@@ -41,7 +41,7 @@
       netlify-honeypot="bot-field"
     >
       <input type="hidden" name="form-name" value="advisor-lottery" />
-      <input type="hidden" id="choices" name="choices" />
+      <div id="choice-fields" aria-hidden="true"></div>
       <p class="sr-only">
         <label>Don’t fill this out if you’re human
           <input name="bot-field" type="text" tabindex="-1" autocomplete="off" />
@@ -53,13 +53,13 @@
       <div class="top-inputs">
         <label class="field">
           <span class="sr-only">Full Name</span>
-          <input type="text" name="full-name" id="full-name" required autocomplete="name" placeholder="Full Name" />
+          <input type="text" name="Name" id="full-name" required autocomplete="name" placeholder="Full Name" />
         </label>
         <label class="field">
           <span class="sr-only">Columbia email address</span>
           <input
             type="email"
-            name="email"
+            name="Email"
             id="email"
             inputmode="email"
             autocapitalize="none"

@@ -7,6 +7,7 @@ const state = {
   advisorsLoaded: false,
   rankListEl: null,
   rankHeaderEl: null,
+  choiceFieldContainer: null,
   tableResizeObserver: null,
 };
 
@@ -19,9 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const passwordStatus = document.getElementById('password-status');
   const advisorForm = document.getElementById('advisor-form');
   const emailInput = document.getElementById('email');
+  const choiceFields = document.getElementById('choice-fields');
   const submitBtn = advisorForm.querySelector('button[type="submit"]');
   state.rankListEl = document.getElementById('rank-table-body');
   state.rankHeaderEl = document.querySelector('.rank-table thead tr');
+  state.choiceFieldContainer = choiceFields;
 
   attachParallaxBackground();
   enforceColumbiaEmail(emailInput);
@@ -133,7 +136,7 @@ function loadAdvisors(submitBtn) {
       });
 
       initSortable(tableBody);
-      updateChoicesField();
+      updateChoiceFields();
       setGuidance('Drag rows to rank your preferences. Left column shows the choice numbers.');
       state.advisorsLoaded = true;
       submitBtn.disabled = false;
@@ -198,35 +201,44 @@ function initSortable(tbody) {
     onStart: (evt) => evt.item.classList.add('dragging'),
     onEnd: (evt) => {
       evt.item.classList.remove('dragging');
-      updateChoicesField();
+      updateChoiceFields();
     },
   });
 }
 
-function updateChoicesField() {
-  const choicesInput = document.getElementById('choices');
-  const tbody = document.querySelector('#advisor-table tbody');
-  if (!choicesInput || !tbody) return;
-
-  const records = Array.from(tbody.querySelectorAll('tr')).map((row, index) => ({
-    rank: `${ordinal(index + 1)} Choice`,
-    advisor: row.dataset.name || '',
-    capacity: row.dataset.capacity || '',
-    tags: row.dataset.tags || '',
-  }));
-
-  choicesInput.value = serializeChoicesToCSV(records);
+function updateChoiceFields() {
+  const names = getOrderedAdvisorNames();
+  syncChoiceInputs(names);
   scheduleRankSync();
+  return names;
 }
 
-function serializeChoicesToCSV(rows) {
-  const header = 'Rank,Advisor,Capacity,Tags';
-  const body = rows
-    .map((row) => [row.rank, row.advisor, row.capacity, row.tags]
-      .map((value) => escapeCsv(value))
-      .join(','))
-    .join('\n');
-  return `${header}\n${body}`;
+function getOrderedAdvisorNames() {
+  const tbody = document.querySelector('#advisor-table tbody');
+  if (!tbody) return [];
+  return Array.from(tbody.querySelectorAll('tr')).map((row) => row.dataset.name || '');
+}
+
+function syncChoiceInputs(names) {
+  const container = state.choiceFieldContainer || document.getElementById('choice-fields');
+  if (!container) return;
+  state.choiceFieldContainer = container;
+  container.innerHTML = '';
+  names.forEach((choice, index) => {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = `${ordinal(index + 1)} Choice`;
+    input.value = choice;
+    container.appendChild(input);
+  });
+}
+
+function buildStudentCsv(name, email, choices) {
+  const headers = ['Name', 'Email', ...choices.map((_, index) => `${ordinal(index + 1)} Choice`)];
+  const values = [name, email, ...choices];
+  const headerRow = headers.map((value) => escapeCsv(value)).join(',');
+  const valueRow = values.map((value) => escapeCsv(value)).join(',');
+  return `${headerRow}\n${valueRow}`;
 }
 
 function escapeCsv(value = '') {
@@ -261,11 +273,11 @@ async function handleSubmit(event, form, submitBtn) {
   }
 
   submitBtn.disabled = true;
-  updateChoicesField();
+  const choiceNames = updateChoiceFields();
 
-  const choicesInput = document.getElementById('choices');
-  const csvPayload = choicesInput.value;
+  const nameValue = (form.querySelector('#full-name').value || '').trim();
   const emailValue = (form.querySelector('#email').value || '').trim().toLowerCase();
+  const csvPayload = buildStudentCsv(nameValue, emailValue, choiceNames);
 
   triggerCsvDownload(csvPayload, emailValue);
 
@@ -284,7 +296,7 @@ async function handleSubmit(event, form, submitBtn) {
 
     setFormStatus(formStatus, 'Thanks! Your rankings were sent successfully.', 'success');
     form.reset();
-    updateChoicesField();
+    updateChoiceFields();
   } catch (error) {
     console.error(error);
     setFormStatus(
