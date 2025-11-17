@@ -1,3 +1,6 @@
+// Toggle this to open/close the form
+const FORM_IS_OPEN = false; // Set to true to open the form, false to close it
+
 const PASSWORD_HASH = '566ffcee658ba582e08468f0f1634411bed916f4d29644be41b0b6575771c05d';
 const TAG_COLORS = [
   'rgba(124, 143, 241, 0.25)',
@@ -35,8 +38,26 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAdvisors(submitBtn);
   setupDragTooltip();
 
+  // Handle form open/closed state
+  if (!FORM_IS_OPEN) {
+    // Form is closed - show closed message and hide password input
+    const splashPrompt = document.querySelector('.splash__prompt');
+    if (splashPrompt) {
+      splashPrompt.textContent = 'This form is not currently taking responses.';
+    }
+    if (passwordInput) passwordInput.style.display = 'none';
+    const submitButton = passwordForm?.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.style.display = 'none';
+  }
+
   passwordForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
+
+    // If form is closed, do nothing
+    if (!FORM_IS_OPEN) {
+      return;
+    }
+
     passwordStatus.textContent = '';
 
     try {
